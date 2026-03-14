@@ -1,0 +1,197 @@
+use crate::fast::{self, FastNttParams};
+use crate::precompile::PrecompileError;
+use std::slice;
+
+fn error_code(e: PrecompileError) -> i32 {
+    match e {
+        PrecompileError::InputTooShort => -1,
+        PrecompileError::InvalidParams(_) => -2,
+        PrecompileError::BadLength => -3,
+        PrecompileError::Overflow(_) => -4,
+    }
+}
+
+fn write_output(output: Vec<u8>, out_ptr: *mut *mut u8, out_len: *mut usize) {
+    let boxed = output.into_boxed_slice();
+    let len = boxed.len();
+    let ptr = Box::into_raw(boxed) as *mut u8;
+    unsafe {
+        *out_ptr = ptr;
+        *out_len = len;
+    }
+}
+
+// ─── Precompile entry points ───
+
+#[no_mangle]
+pub unsafe extern "C" fn eth_ntt_fw_precompile(
+    input: *const u8,
+    input_len: usize,
+    gas_out: *mut u64,
+    output_out: *mut *mut u8,
+    output_len_out: *mut usize,
+) -> i32 {
+    let input = slice::from_raw_parts(input, input_len);
+    match crate::ntt_fw_precompile(input) {
+        Ok((gas, output)) => {
+            *gas_out = gas;
+            write_output(output, output_out, output_len_out);
+            0
+        }
+        Err(e) => error_code(e),
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn eth_ntt_inv_precompile(
+    input: *const u8,
+    input_len: usize,
+    gas_out: *mut u64,
+    output_out: *mut *mut u8,
+    output_len_out: *mut usize,
+) -> i32 {
+    let input = slice::from_raw_parts(input, input_len);
+    match crate::ntt_inv_precompile(input) {
+        Ok((gas, output)) => {
+            *gas_out = gas;
+            write_output(output, output_out, output_len_out);
+            0
+        }
+        Err(e) => error_code(e),
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn eth_ntt_vecmulmod_precompile(
+    input: *const u8,
+    input_len: usize,
+    gas_out: *mut u64,
+    output_out: *mut *mut u8,
+    output_len_out: *mut usize,
+) -> i32 {
+    let input = slice::from_raw_parts(input, input_len);
+    match crate::ntt_vecmulmod_precompile(input) {
+        Ok((gas, output)) => {
+            *gas_out = gas;
+            write_output(output, output_out, output_len_out);
+            0
+        }
+        Err(e) => error_code(e),
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn eth_ntt_vecaddmod_precompile(
+    input: *const u8,
+    input_len: usize,
+    gas_out: *mut u64,
+    output_out: *mut *mut u8,
+    output_len_out: *mut usize,
+) -> i32 {
+    let input = slice::from_raw_parts(input, input_len);
+    match crate::ntt_vecaddmod_precompile(input) {
+        Ok((gas, output)) => {
+            *gas_out = gas;
+            write_output(output, output_out, output_len_out);
+            0
+        }
+        Err(e) => error_code(e),
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn eth_ntt_free_buffer(ptr: *mut u8, len: usize) {
+    if !ptr.is_null() && len > 0 {
+        let _ = Box::from_raw(slice::from_raw_parts_mut(ptr, len));
+    }
+}
+
+// ─── Fast direct API ───
+
+#[no_mangle]
+pub unsafe extern "C" fn eth_ntt_fast_params_new(
+    q: u64,
+    n: usize,
+    psi: u64,
+) -> *mut FastNttParams {
+    match FastNttParams::new(q, n, psi) {
+        Ok(params) => Box::into_raw(Box::new(params)),
+        Err(_) => std::ptr::null_mut(),
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn eth_ntt_fast_params_free(params: *mut FastNttParams) {
+    if !params.is_null() {
+        drop(Box::from_raw(params));
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn eth_ntt_fast_params_q(params: *const FastNttParams) -> u64 {
+    (*params).q
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn eth_ntt_fast_params_n(params: *const FastNttParams) -> usize {
+    (*params).n
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn eth_ntt_fast_params_coeff_bytes(params: *const FastNttParams) -> usize {
+    (*params).coeff_bytes
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn eth_ntt_fw(
+    params: *const FastNttParams,
+    input: *const u64,
+    output: *mut u64,
+    n: usize,
+) {
+    let params = &*params;
+    let input = slice::from_raw_parts(input, n);
+    let result = fast::ntt_fw_fast(input, params);
+    std::ptr::copy_nonoverlapping(result.as_ptr(), output, n);
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn eth_ntt_inv(
+    params: *const FastNttParams,
+    input: *const u64,
+    output: *mut u64,
+    n: usize,
+) {
+    let params = &*params;
+    let input = slice::from_raw_parts(input, n);
+    let result = fast::ntt_inv_fast(input, params);
+    std::ptr::copy_nonoverlapping(result.as_ptr(), output, n);
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn eth_ntt_vec_mul_mod(
+    a: *const u64,
+    b: *const u64,
+    output: *mut u64,
+    n: usize,
+    q: u64,
+) {
+    let a = slice::from_raw_parts(a, n);
+    let b = slice::from_raw_parts(b, n);
+    let result = fast::vec_mul_mod_fast(a, b, q);
+    std::ptr::copy_nonoverlapping(result.as_ptr(), output, n);
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn eth_ntt_vec_add_mod(
+    a: *const u64,
+    b: *const u64,
+    output: *mut u64,
+    n: usize,
+    q: u64,
+) {
+    let a = slice::from_raw_parts(a, n);
+    let b = slice::from_raw_parts(b, n);
+    let result = fast::vec_add_mod_fast(a, b, q);
+    std::ptr::copy_nonoverlapping(result.as_ptr(), output, n);
+}
