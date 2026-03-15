@@ -1,10 +1,10 @@
-/// @title FalconVerifierV4 — Falcon-512 verifier with norm precompile
+/// @title FalconVerifierNTTWithLpNorm — Falcon-512 verifier with norm precompile
 /// Calldata: salt(40) | msg(var) | s2_compact(1024) | ntth_compact(1024)
 /// Precompiles: 0x17 NTT_FW, 0x18 NTT_INV, 0x19 VECMULMOD,
 ///              0x1a SHAKE256_HTP, 0x1b FALCON_NORM
 /// Returns 32 bytes from norm precompile (0x01 valid, 0x00 invalid)
 
-object "FalconVerifierV4" {
+object "FalconVerifierNTTWithLpNorm" {
     code {
         datacopy(0, dataoffset("runtime"), datasize("runtime"))
         return(0, datasize("runtime"))

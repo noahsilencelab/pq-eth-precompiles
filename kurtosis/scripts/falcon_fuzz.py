@@ -2,7 +2,7 @@
 """
 Falcon-512 on-chain verification fuzzer.
 First byte even → invalid sig, odd → valid sig.
-Uses FALCON_VERIFY precompile at 0x17 via FalconVerifierV5.yul.
+Uses FALCON_VERIFY precompile at 0x17 via FalconVerifierDirectVerify.yul.
 Cross-checks against Solidity ZKNOX_falcon oracle.
 """
 import os, sys, time, subprocess, requests
@@ -73,11 +73,11 @@ def main():
     acct = w3.eth.account.from_key("bcdf20249abf0ed6d944c0288fad489e33f66b3960d9e6229c1cd214ed3bbe31")
     contracts_dir = Path(__file__).parent.parent / "contracts"
 
-    # Deploy Yul V5 (uses FALCON_VERIFY at 0x17, flat uint16 BE format)
-    print("Deploying Yul V5...")
-    v5_addr = deploy_yul(w3, acct, contracts_dir / "FalconVerifierV5.yul")
+    # Deploy FalconVerifierDirectVerify (uses FALCON_VERIFY at 0x17, flat uint16 BE format)
+    print("Deploying FalconVerifierDirectVerify...")
+    v5_addr = deploy_yul(w3, acct, contracts_dir / "FalconVerifierDirectVerify.yul")
     v5_code = w3.eth.get_code(v5_addr)
-    print(f"Yul V5: {v5_addr} ({len(v5_code)}B runtime)")
+    print(f"FalconVerifierDirectVerify: {v5_addr} ({len(v5_code)}B runtime)")
 
     # Keygen
     pk, sk = generate_keypair()
@@ -110,7 +110,7 @@ def main():
                     _, sk2 = generate_keypair()  # wrong key
                     nonce, s2 = decode_sig(sign(sk2, msg))
 
-            # ── V5 via eth_call (flat uint16 BE, FALCON_VERIFY at 0x17) ──
+            # ── DirectVerify via eth_call (flat uint16 BE, FALCON_VERIFY at 0x17) ──
             v5_cd = coeffs_to_flat(s2) + ntth_flat + nonce + msg
             v5_r = requests.post(rpc, json={'jsonrpc': '2.0', 'method': 'eth_call',
                 'params': [{'to': v5_addr, 'data': '0x' + v5_cd.hex()}, 'latest'], 'id': i})
@@ -130,7 +130,7 @@ def main():
                     print(f"\n  BUG: precompile rejects valid sig at iter {i}")
                 if v5_err:
                     ok = False
-                    print(f"\n  BUG: V5 reverts on valid sig at iter {i}")
+                    print(f"\n  BUG: DirectVerify reverts on valid sig at iter {i}")
             else:
                 if pc_valid:
                     pass  # corruption may not always change norm enough

@@ -65,38 +65,36 @@ Deploys the ZKNOX_falcon Solidity contract, signs messages with pqcrypto, verifi
 
 ## Contracts
 
-| Contract | File | Gas | Runtime |
-|---|---|---|---|
-| FalconVerifierV4 | `contracts/FalconVerifierV4.yul` | **98k** | 116B |
-| FalconVerifierV3 | `contracts/FalconVerifierV3.yul` | 180k | 266B |
-| ZKNOX_falcon (Solidity) | `contracts/ZKNOX_falcon.sol` | 209k | 1.4KB |
+| Contract | File | Gas | Runtime | Strategy |
+|---|---|---|---|---|
+| FalconVerifierDirectVerify | `contracts/FalconVerifierDirectVerify.yul` | **97k** | 25B | Single FALCON_VERIFY call |
+| FalconVerifierNTTWithLpNorm | `contracts/FalconVerifierNTTWithLpNorm.yul` | 98k | 116B | NTT precompiles + LpNorm |
+| FalconVerifierNTT | `contracts/FalconVerifierNTT.yul` | 180k | 266B | NTT precompiles + on-chain norm |
 
 ## Precompiles
 
 | Address | Name | Input | Output | Gas |
 |---|---|---|---|---|
-| 0x12 | NTT_FW | generic calldata | raw coefficients | 600 |
-| 0x13 | NTT_INV | generic calldata | raw coefficients | 600 |
-| 0x14 | VECMULMOD | generic calldata | raw coefficients | 18 |
-| 0x17 | NTT_FW_COMPACT | 1024B compact | 1024B compact | 600 |
-| 0x18 | NTT_INV_COMPACT | 1024B compact | 1024B compact | 600 |
-| 0x19 | VECMULMOD_COMPACT | 2048B compact | 1024B compact | 18 |
-| 0x1a | SHAKE256_HTP | salt\|\|msg | 1024B compact | ~50 |
-| 0x1b | LpNorm | s1\|\|s2\|\|hashed (3072B) | 32B bool | 100 |
+| 0x12 | NTT_FW | q_len\|psi_len\|n\|q\|psi\|coeffs | coeffs | 600 |
+| 0x13 | NTT_INV | (same as NTT_FW) | coeffs | 600 |
+| 0x14 | VECMULMOD | q_len\|n\|q\|a\|b | result | variable |
+| 0x15 | VECADDMOD | (same as VECMULMOD) | result | variable |
+| 0x16 | SHAKE256 | outlen(32)\|data | output | 30 + 6×words |
+| 0x17 | FALCON_VERIFY | s2(1024)\|ntth(1024)\|salt_msg | 32B bool | 2800 |
 
-**Compact format**: 32 big-endian uint256 words, each packing 16 little-endian uint16 coefficients.
+See [docs/precompiles.md](../docs/precompiles.md) for full API reference.
 
-## Gas Breakdown (V4, 98k total)
+## Gas Breakdown (FalconVerifierDirectVerify, ~97k total)
 
 | Component | Gas | % |
 |---|---|---|
-| Base tx | 21,000 | 21% |
-| Calldata (2.1KB) | 30,632 | 31% |
-| 5x cold STATICCALL | 13,000 | 13% |
-| Precompile execution | 1,366 | 1.4% |
-| EVM overhead | ~32,572 | 33% |
+| Base tx | 21,000 | 21.6% |
+| Calldata (2.1KB) | ~30,600 | 31.5% |
+| Cold STATICCALL | 2,600 | 2.7% |
+| FALCON_VERIFY | 2,800 | 2.9% |
+| EVM overhead | ~40,000 | 41.3% |
 
-The actual cryptography (NTT + SHAKE256 + norm check) is **1.4%** of total gas.
+The actual cryptography is **2.9%** of total gas.
 
 ## Tear Down
 

@@ -124,9 +124,33 @@ Gas prices target 350 Mgas/s throughput.
 
 ---
 
-## On-chain verification (FalconVerifierV5.yul)
+## On-chain contracts
 
-The V5 contract is a minimal Yul wrapper around FALCON_VERIFY:
+Three Yul contracts with different trade-offs:
+
+### FalconVerifierNTT
+
+Uses generic NTT precompiles (0x12-0x14) + SHAKE256 (0x16) with an on-chain norm check loop.
+
+| Metric | Value |
+|---|---|
+| Precompiles used | 0x12, 0x13, 0x14, 0x16 (4 calls) |
+| Runtime bytecode | 266 bytes |
+| Verify gas | ~180,000 |
+
+### FalconVerifierNTTWithLpNorm
+
+Same as NTT but replaces the on-chain norm loop with an LpNorm precompile call.
+
+| Metric | Value |
+|---|---|
+| Precompiles used | 0x12, 0x13, 0x14, 0x16, LpNorm (5 calls) |
+| Runtime bytecode | 116 bytes |
+| Verify gas | ~98,000 |
+
+### FalconVerifierDirectVerify
+
+Single call to FALCON_VERIFY (0x17). Calldata = precompile input, zero rearrangement.
 
 ```yul
 calldatacopy(0, 0, calldatasize())
@@ -134,18 +158,16 @@ if iszero(staticcall(gas(), 0x17, 0, calldatasize(), 0, 0x20)) { revert(0,0) }
 return(0, 0x20)
 ```
 
-**Calldata layout** = precompile input (zero rearrangement):
-```
-s2(1024, 512×uint16 BE) | ntth(1024, 512×uint16 BE) | salt(40) | msg(var)
-```
+**Calldata:** `s2(1024, 512×uint16 BE) | ntth(1024, 512×uint16 BE) | salt(40) | msg(var)`
 
 | Metric | Value |
 |---|---|
+| Precompiles used | 0x17 (1 call) |
 | Runtime bytecode | 25 bytes |
 | Deploy gas | 58,586 |
-| Verify gas (total tx) | ~97,000 |
+| Verify gas | ~97,000 |
 
-### Gas breakdown
+### Gas breakdown (FalconVerifierDirectVerify)
 
 | Component | Gas | % |
 |---|---|---|
@@ -155,4 +177,4 @@ s2(1024, 512×uint16 BE) | ntth(1024, 512×uint16 BE) | salt(40) | msg(var)
 | FALCON_VERIFY precompile | 2,800 | 2.9% |
 | EVM overhead | ~40,000 | 41.3% |
 
-The actual cryptography (NTT + SHAKE256 + norm check) is **2.9%** of total gas. The rest is EVM fixed costs.
+The actual cryptography is **2.9%** of total gas. The rest is EVM fixed costs.
