@@ -10,7 +10,7 @@ extern "C" {
 
 /* ── Precompile entry points ──
  *
- * Take raw EVM calldata, return (gas, output_bytes).
+ * Take raw EVM calldata, return output_bytes.
  * Return 0 on success, negative on error:
  *   -1: input too short
  *   -2: invalid field parameters
@@ -23,22 +23,18 @@ extern "C" {
 
 int32_t eth_ntt_fw_precompile(
     const uint8_t *input, size_t input_len,
-    uint64_t *gas_out,
     uint8_t **output_out, size_t *output_len_out);
 
 int32_t eth_ntt_inv_precompile(
     const uint8_t *input, size_t input_len,
-    uint64_t *gas_out,
     uint8_t **output_out, size_t *output_len_out);
 
 int32_t eth_ntt_vecmulmod_precompile(
     const uint8_t *input, size_t input_len,
-    uint64_t *gas_out,
     uint8_t **output_out, size_t *output_len_out);
 
 int32_t eth_ntt_vecaddmod_precompile(
     const uint8_t *input, size_t input_len,
-    uint64_t *gas_out,
     uint8_t **output_out, size_t *output_len_out);
 
 void eth_ntt_free_buffer(uint8_t *ptr, size_t len);

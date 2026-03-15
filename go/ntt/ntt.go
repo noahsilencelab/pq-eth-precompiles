@@ -46,63 +46,59 @@ func precompileError(rc C.int32_t) error {
 	}
 }
 
-func collectOutput(rc C.int32_t, gas C.uint64_t, outPtr *C.uint8_t, outLen C.size_t) (uint64, []byte, error) {
+func collectOutput(rc C.int32_t, outPtr *C.uint8_t, outLen C.size_t) ([]byte, error) {
 	if rc != 0 {
-		return 0, nil, precompileError(rc)
+		return nil, precompileError(rc)
 	}
 	output := C.GoBytes(unsafe.Pointer(outPtr), C.int(outLen))
 	C.eth_ntt_free_buffer(outPtr, outLen)
-	return uint64(gas), output, nil
+	return output, nil
 }
 
 // ── Precompile API ──
 
 // NttFwPrecompile executes the NTT forward precompile on raw EVM calldata.
-func NttFwPrecompile(input []byte) (uint64, []byte, error) {
+func NttFwPrecompile(input []byte) ([]byte, error) {
 	if len(input) == 0 {
-		return 0, nil, ErrInputTooShort
+		return nil, ErrInputTooShort
 	}
-	var gas C.uint64_t
 	var outPtr *C.uint8_t
 	var outLen C.size_t
-	rc := C.eth_ntt_fw_precompile((*C.uint8_t)(unsafe.Pointer(&input[0])), C.size_t(len(input)), &gas, &outPtr, &outLen)
-	return collectOutput(rc, gas, outPtr, outLen)
+	rc := C.eth_ntt_fw_precompile((*C.uint8_t)(unsafe.Pointer(&input[0])), C.size_t(len(input)), &outPtr, &outLen)
+	return collectOutput(rc, outPtr, outLen)
 }
 
 // NttInvPrecompile executes the NTT inverse precompile on raw EVM calldata.
-func NttInvPrecompile(input []byte) (uint64, []byte, error) {
+func NttInvPrecompile(input []byte) ([]byte, error) {
 	if len(input) == 0 {
-		return 0, nil, ErrInputTooShort
+		return nil, ErrInputTooShort
 	}
-	var gas C.uint64_t
 	var outPtr *C.uint8_t
 	var outLen C.size_t
-	rc := C.eth_ntt_inv_precompile((*C.uint8_t)(unsafe.Pointer(&input[0])), C.size_t(len(input)), &gas, &outPtr, &outLen)
-	return collectOutput(rc, gas, outPtr, outLen)
+	rc := C.eth_ntt_inv_precompile((*C.uint8_t)(unsafe.Pointer(&input[0])), C.size_t(len(input)), &outPtr, &outLen)
+	return collectOutput(rc, outPtr, outLen)
 }
 
 // VecMulModPrecompile executes the vector modular multiply precompile.
-func VecMulModPrecompile(input []byte) (uint64, []byte, error) {
+func VecMulModPrecompile(input []byte) ([]byte, error) {
 	if len(input) == 0 {
-		return 0, nil, ErrInputTooShort
+		return nil, ErrInputTooShort
 	}
-	var gas C.uint64_t
 	var outPtr *C.uint8_t
 	var outLen C.size_t
-	rc := C.eth_ntt_vecmulmod_precompile((*C.uint8_t)(unsafe.Pointer(&input[0])), C.size_t(len(input)), &gas, &outPtr, &outLen)
-	return collectOutput(rc, gas, outPtr, outLen)
+	rc := C.eth_ntt_vecmulmod_precompile((*C.uint8_t)(unsafe.Pointer(&input[0])), C.size_t(len(input)), &outPtr, &outLen)
+	return collectOutput(rc, outPtr, outLen)
 }
 
 // VecAddModPrecompile executes the vector modular add precompile.
-func VecAddModPrecompile(input []byte) (uint64, []byte, error) {
+func VecAddModPrecompile(input []byte) ([]byte, error) {
 	if len(input) == 0 {
-		return 0, nil, ErrInputTooShort
+		return nil, ErrInputTooShort
 	}
-	var gas C.uint64_t
 	var outPtr *C.uint8_t
 	var outLen C.size_t
-	rc := C.eth_ntt_vecaddmod_precompile((*C.uint8_t)(unsafe.Pointer(&input[0])), C.size_t(len(input)), &gas, &outPtr, &outLen)
-	return collectOutput(rc, gas, outPtr, outLen)
+	rc := C.eth_ntt_vecaddmod_precompile((*C.uint8_t)(unsafe.Pointer(&input[0])), C.size_t(len(input)), &outPtr, &outLen)
+	return collectOutput(rc, outPtr, outLen)
 }
 
 // ── Fast direct API ──

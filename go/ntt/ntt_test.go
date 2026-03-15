@@ -174,12 +174,9 @@ func TestPrecompileRoundtrip(t *testing.T) {
 	coeffs := []uint64{1, 2, 3, 4}
 
 	input := encodeNttInput(q, psi, n, coeffs)
-	gas, fwdOut, err := NttFwPrecompile(input)
+	fwdOut, err := NttFwPrecompile(input)
 	if err != nil {
 		t.Fatal(err)
-	}
-	if gas != 600 {
-		t.Fatalf("gas = %d, want 600", gas)
 	}
 
 	nttCoeffs := make([]uint64, n)
@@ -189,7 +186,7 @@ func TestPrecompileRoundtrip(t *testing.T) {
 	}
 
 	invInput := encodeNttInput(q, psi, n, nttCoeffs)
-	_, invOut, err := NttInvPrecompile(invInput)
+	invOut, err := NttInvPrecompile(invInput)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -203,7 +200,7 @@ func TestPrecompileRoundtrip(t *testing.T) {
 }
 
 func TestPrecompileEmptyInput(t *testing.T) {
-	_, _, err := NttFwPrecompile([]byte{})
+	_, err := NttFwPrecompile([]byte{})
 	if err == nil {
 		t.Fatal("expected error for empty input")
 	}
@@ -229,7 +226,7 @@ func BenchmarkNttFwPrecompile(b *testing.B) {
 
 func BenchmarkNttInvPrecompile(b *testing.B) {
 	input := benchPrecompileInput()
-	_, fwdOut, _ := NttFwPrecompile(input)
+	fwdOut, _ := NttFwPrecompile(input)
 	// re-encode forward output as inv input
 	cb := (big.NewInt(falconQ).BitLen() + 7) / 8
 	nttCoeffs := make([]uint64, falconN)

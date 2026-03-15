@@ -6,8 +6,6 @@ use crate::fast::{self, FastNttParams};
 use crate::field::FieldParams;
 use crate::ntt;
 
-pub const NTT_GAS: u64 = 600;
-
 const WORD: usize = 32;
 
 #[derive(Debug, Error)]
@@ -20,22 +18,6 @@ pub enum PrecompileError {
     BadLength,
     #[error("parameter overflow: {0}")]
     Overflow(&'static str),
-}
-
-/// Compute gas for VECMULMOD: k * log2(n) / 8, where k = smallest power of 2 >= log2(q).
-pub fn vecmulmod_gas(q: &BigUint, n: usize) -> u64 {
-    let log_q = q.bits() as u64;
-    let k = log_q.next_power_of_two();
-    let log_n = (n as f64).log2() as u64;
-    k * log_n / 8
-}
-
-/// Compute gas for VECADDMOD: k * log2(n) / 32.
-pub fn vecaddmod_gas(q: &BigUint, n: usize) -> u64 {
-    let log_q = q.bits() as u64;
-    let k = log_q.next_power_of_two();
-    let log_n = (n as f64).log2() as u64;
-    k * log_n / 32
 }
 
 /// Read a 32-byte big-endian word as a BigUint and advance the offset.
@@ -135,20 +117,6 @@ fn encode_vector_u64(v: &[u64], coeff_bytes: usize) -> Vec<u8> {
         out.extend_from_slice(&be[8 - coeff_bytes..]);
     }
     out
-}
-
-/// Gas for VECMULMOD from u64 q.
-fn vecmulmod_gas_u64(q_bits: u32, n: usize) -> u64 {
-    let k = (q_bits as u64).next_power_of_two();
-    let log_n = (n as f64).log2() as u64;
-    k * log_n / 8
-}
-
-/// Gas for VECADDMOD from u64 q.
-fn vecaddmod_gas_u64(q_bits: u32, n: usize) -> u64 {
-    let k = (q_bits as u64).next_power_of_two();
-    let log_n = (n as f64).log2() as u64;
-    k * log_n / 32
 }
 
 /// Try to decode NTT calldata using u64 fast path.
@@ -301,62 +269,58 @@ fn decode_vec_input(
 
 // ─── Public precompile entry points ───
 
-/// Execute `NTT_FW` precompile. Returns `(gas_used, output_bytes)`.
-pub fn ntt_fw_precompile(input: &[u8]) -> Result<(u64, Vec<u8>), PrecompileError> {
-    // Try u64 fast path (covers all practical moduli)
+/// Execute `NTT_FW` precompile.
+pub fn ntt_fw_precompile(input: &[u8]) -> Result<Vec<u8>, PrecompileError> {
     if let Some((fast, a)) = try_decode_ntt_fast(input)? {
         let result = fast::ntt_fw_fast(&a, &fast);
-        return Ok((NTT_GAS, encode_vector_u64(&result, fast.coeff_bytes)));
+        return Ok(encode_vector_u64(&result, fast.coeff_bytes));
     }
-    // BigUint fallback for q >= 2^63
     let (params, a) = decode_ntt_input(input)?;
     let coeff_bytes = params.coeff_byte_len();
     let result = ntt::ntt_fw(&a, &params);
-    Ok((NTT_GAS, encode_vector(&result, coeff_bytes)))
+    Ok(encode_vector(&result, coeff_bytes))
 }
 
-/// Execute `NTT_INV` precompile. Returns `(gas_used, output_bytes)`.
-pub fn ntt_inv_precompile(input: &[u8]) -> Result<(u64, Vec<u8>), PrecompileError> {
+/// Execute `NTT_INV` precompile.
+pub fn ntt_inv_precompile(input: &[u8]) -> Result<Vec<u8>, PrecompileError> {
     if let Some((fast, a)) = try_decode_ntt_fast(input)? {
         let result = fast::ntt_inv_fast(&a, &fast);
-        return Ok((NTT_GAS, encode_vector_u64(&result, fast.coeff_bytes)));
+        return Ok(encode_vector_u64(&result, fast.coeff_bytes));
     }
     let (params, a) = decode_ntt_input(input)?;
     let coeff_bytes = params.coeff_byte_len();
     let result = ntt::ntt_inv(&a, &params);
-    Ok((NTT_GAS, encode_vector(&result, coeff_bytes)))
+    Ok(encode_vector(&result, coeff_bytes))
 }
 
-/// Execute `NTT_VECMULMOD` precompile. Returns `(gas_used, output_bytes)`.
-pub fn ntt_vecmulmod_precompile(input: &[u8]) -> Result<(u64, Vec<u8>), PrecompileError> {
-    if let Some((q, n, a, b)) = try_decode_vec_fast(input)? {
-        let q_bits = 64 - q.leading_zeros();
+/// Execute `NTT_VECMULMOD` precompile.
+pub fn ntt_vecmulmod_precompile(input: &[u8]) -> Result<Vec<u8>, PrecompileError> {
+    if let Some((_q, _n, a, b)) = try_decode_vec_fast(input)? {
+        let q_val = _q;
+        let q_bits = 64 - q_val.leading_zeros();
         let cb = (q_bits as usize + 7) / 8;
-        let gas = vecmulmod_gas_u64(q_bits, n);
-        let result = fast::vec_mul_mod_fast(&a, &b, q);
-        return Ok((gas, encode_vector_u64(&result, cb)));
+        let result = fast::vec_mul_mod_fast(&a, &b, q_val);
+        return Ok(encode_vector_u64(&result, cb));
     }
-    let (q, n, a, b) = decode_vec_input(input)?;
+    let (q, _n, a, b) = decode_vec_input(input)?;
     let coeff_bytes = (q.bits() as usize + 7) / 8;
-    let gas = vecmulmod_gas(&q, n);
     let result = ntt::vec_mul_mod(&a, &b, &q);
-    Ok((gas, encode_vector(&result, coeff_bytes)))
+    Ok(encode_vector(&result, coeff_bytes))
 }
 
-/// Execute `NTT_VECADDMOD` precompile. Returns `(gas_used, output_bytes)`.
-pub fn ntt_vecaddmod_precompile(input: &[u8]) -> Result<(u64, Vec<u8>), PrecompileError> {
-    if let Some((q, n, a, b)) = try_decode_vec_fast(input)? {
-        let q_bits = 64 - q.leading_zeros();
+/// Execute `NTT_VECADDMOD` precompile.
+pub fn ntt_vecaddmod_precompile(input: &[u8]) -> Result<Vec<u8>, PrecompileError> {
+    if let Some((_q, _n, a, b)) = try_decode_vec_fast(input)? {
+        let q_val = _q;
+        let q_bits = 64 - q_val.leading_zeros();
         let cb = (q_bits as usize + 7) / 8;
-        let gas = vecaddmod_gas_u64(q_bits, n);
-        let result = fast::vec_add_mod_fast(&a, &b, q);
-        return Ok((gas, encode_vector_u64(&result, cb)));
+        let result = fast::vec_add_mod_fast(&a, &b, q_val);
+        return Ok(encode_vector_u64(&result, cb));
     }
-    let (q, n, a, b) = decode_vec_input(input)?;
+    let (q, _n, a, b) = decode_vec_input(input)?;
     let coeff_bytes = (q.bits() as usize + 7) / 8;
-    let gas = vecaddmod_gas(&q, n);
     let result = ntt::vec_add_mod(&a, &b, &q);
-    Ok((gas, encode_vector(&result, coeff_bytes)))
+    Ok(encode_vector(&result, coeff_bytes))
 }
 
 // ─── Calldata encoders (for building inputs from Rust) ───
@@ -451,14 +415,13 @@ mod tests {
             .collect();
 
         let input = encode_ntt_input(&params, &a);
-        let (gas, output) = ntt_fw_precompile(&input).unwrap();
-        assert_eq!(gas, NTT_GAS);
+        let output = ntt_fw_precompile(&input).unwrap();
 
         let cb = params.coeff_byte_len();
         let ntt_a = decode_output(&output, params.n, cb);
 
         let inv_input = encode_ntt_input(&params, &ntt_a);
-        let (_, inv_output) = ntt_inv_precompile(&inv_input).unwrap();
+        let inv_output = ntt_inv_precompile(&inv_input).unwrap();
         let recovered = decode_output(&inv_output, params.n, cb);
 
         assert_eq!(a, recovered);
@@ -478,8 +441,7 @@ mod tests {
             .collect();
 
         let input = encode_vec_input(&q, n, &a, &b);
-        let (gas, output) = ntt_vecmulmod_precompile(&input).unwrap();
-        assert!(gas > 0);
+        let output = ntt_vecmulmod_precompile(&input).unwrap();
 
         let results = decode_output(&output, n, 1);
         assert_eq!(
@@ -507,8 +469,7 @@ mod tests {
             .collect();
 
         let input = encode_vec_input(&q, n, &a, &b);
-        let (gas, output) = ntt_vecaddmod_precompile(&input).unwrap();
-        assert_eq!(gas, 0);
+        let output = ntt_vecaddmod_precompile(&input).unwrap();
 
         let results = decode_output(&output, n, 1);
         assert_eq!(
@@ -532,15 +493,15 @@ mod tests {
         let f: Vec<BigUint> = (0..n).map(|i| BigUint::from(i as u64)).collect();
         let g: Vec<BigUint> = (0..n).map(|i| BigUint::from((n - i) as u64)).collect();
 
-        let (_, fw_f_out) = ntt_fw_precompile(&encode_ntt_input(&params, &f)).unwrap();
-        let (_, fw_g_out) = ntt_fw_precompile(&encode_ntt_input(&params, &g)).unwrap();
+        let fw_f_out = ntt_fw_precompile(&encode_ntt_input(&params, &f)).unwrap();
+        let fw_g_out = ntt_fw_precompile(&encode_ntt_input(&params, &g)).unwrap();
         let ntt_f = decode_output(&fw_f_out, n, cb);
         let ntt_g = decode_output(&fw_g_out, n, cb);
 
-        let (_, mul_out) = ntt_vecmulmod_precompile(&encode_vec_input(q, n, &ntt_f, &ntt_g)).unwrap();
+        let mul_out = ntt_vecmulmod_precompile(&encode_vec_input(q, n, &ntt_f, &ntt_g)).unwrap();
         let ntt_product = decode_output(&mul_out, n, cb);
 
-        let (_, inv_out) = ntt_inv_precompile(&encode_ntt_input(&params, &ntt_product)).unwrap();
+        let inv_out = ntt_inv_precompile(&encode_ntt_input(&params, &ntt_product)).unwrap();
         let product = decode_output(&inv_out, n, cb);
 
         let mut expected = vec![BigUint::from(0u64); n];
@@ -557,16 +518,6 @@ mod tests {
         }
 
         assert_eq!(product, expected);
-    }
-
-    #[test]
-    fn test_gas_computation() {
-        let q = BigUint::from(12289u64);
-        assert_eq!(vecmulmod_gas(&q, 512), 18);
-        assert_eq!(vecaddmod_gas(&q, 512), 4);
-
-        let q_dil = BigUint::from(8380417u64);
-        assert_eq!(vecmulmod_gas(&q_dil, 256), 32);
     }
 
     #[test]

@@ -9,6 +9,5 @@ pub use field::FieldParams;
 pub use ntt::{ntt_fw, ntt_inv, vec_add_mod, vec_mul_mod};
 pub use precompile::{
     decode_output, encode_ntt_input, encode_vec_input, ntt_fw_precompile, ntt_inv_precompile,
-    ntt_vecaddmod_precompile, ntt_vecmulmod_precompile, vecaddmod_gas, vecmulmod_gas,
-    PrecompileError, NTT_GAS,
+    ntt_vecaddmod_precompile, ntt_vecmulmod_precompile, PrecompileError,
 };

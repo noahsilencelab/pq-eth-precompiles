@@ -27,14 +27,12 @@ fn write_output(output: Vec<u8>, out_ptr: *mut *mut u8, out_len: *mut usize) {
 pub unsafe extern "C" fn eth_ntt_fw_precompile(
     input: *const u8,
     input_len: usize,
-    gas_out: *mut u64,
     output_out: *mut *mut u8,
     output_len_out: *mut usize,
 ) -> i32 {
     let input = slice::from_raw_parts(input, input_len);
     match crate::ntt_fw_precompile(input) {
-        Ok((gas, output)) => {
-            *gas_out = gas;
+        Ok(output) => {
             write_output(output, output_out, output_len_out);
             0
         }
@@ -46,14 +44,12 @@ pub unsafe extern "C" fn eth_ntt_fw_precompile(
 pub unsafe extern "C" fn eth_ntt_inv_precompile(
     input: *const u8,
     input_len: usize,
-    gas_out: *mut u64,
     output_out: *mut *mut u8,
     output_len_out: *mut usize,
 ) -> i32 {
     let input = slice::from_raw_parts(input, input_len);
     match crate::ntt_inv_precompile(input) {
-        Ok((gas, output)) => {
-            *gas_out = gas;
+        Ok(output) => {
             write_output(output, output_out, output_len_out);
             0
         }
@@ -65,14 +61,12 @@ pub unsafe extern "C" fn eth_ntt_inv_precompile(
 pub unsafe extern "C" fn eth_ntt_vecmulmod_precompile(
     input: *const u8,
     input_len: usize,
-    gas_out: *mut u64,
     output_out: *mut *mut u8,
     output_len_out: *mut usize,
 ) -> i32 {
     let input = slice::from_raw_parts(input, input_len);
     match crate::ntt_vecmulmod_precompile(input) {
-        Ok((gas, output)) => {
-            *gas_out = gas;
+        Ok(output) => {
             write_output(output, output_out, output_len_out);
             0
         }
@@ -84,14 +78,12 @@ pub unsafe extern "C" fn eth_ntt_vecmulmod_precompile(
 pub unsafe extern "C" fn eth_ntt_vecaddmod_precompile(
     input: *const u8,
     input_len: usize,
-    gas_out: *mut u64,
     output_out: *mut *mut u8,
     output_len_out: *mut usize,
 ) -> i32 {
     let input = slice::from_raw_parts(input, input_len);
     match crate::ntt_vecaddmod_precompile(input) {
-        Ok((gas, output)) => {
-            *gas_out = gas;
+        Ok(output) => {
             write_output(output, output_out, output_len_out);
             0
         }
