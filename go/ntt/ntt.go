@@ -234,27 +234,15 @@ func FalconNorm(input []byte) ([]byte, error) {
 	return collectOutput(rc, outPtr, outLen)
 }
 
-// FalconVerify runs full Falcon-512 verification in a single call.
-// Input: salt_msg_len(32) | s2_compact(1024) | ntth_compact(1024) | salt_msg(salt_msg_len)
+// FalconVerify runs full Falcon-512 verification.
+// Input: s2(1024, 512×uint16 BE) | ntth(1024, 512×uint16 BE) | salt_msg(var)
 func FalconVerify(input []byte) ([]byte, error) {
-	if len(input) < 32+2048 {
-		return nil, ErrInputTooShort
-	}
-	var outPtr *C.uint8_t
-	var outLen C.size_t
-	rc := C.eth_ntt_falcon_verify((*C.uint8_t)(unsafe.Pointer(&input[0])), C.size_t(len(input)), &outPtr, &outLen)
-	return collectOutput(rc, outPtr, outLen)
-}
-
-// FalconVerifyV2 runs Falcon-512 verification with zero-copy layout.
-// Input: s2_compact(1024) | ntth_compact(1024) | salt_msg(var)
-func FalconVerifyV2(input []byte) ([]byte, error) {
 	if len(input) < 2048 {
 		return nil, ErrInputTooShort
 	}
 	var outPtr *C.uint8_t
 	var outLen C.size_t
-	rc := C.eth_ntt_falcon_verify_v2((*C.uint8_t)(unsafe.Pointer(&input[0])), C.size_t(len(input)), &outPtr, &outLen)
+	rc := C.eth_ntt_falcon_verify((*C.uint8_t)(unsafe.Pointer(&input[0])), C.size_t(len(input)), &outPtr, &outLen)
 	return collectOutput(rc, outPtr, outLen)
 }
 

@@ -207,33 +207,33 @@ fn read_coeffs(data: &[u8], n: usize, cb: usize) -> Vec<u64> {
     coeffs
 }
 
-/// Falcon-512 verify precompile (v1 format).
-/// Input: salt_msg_len(32 BE) | s2_compact(1024) | ntth_compact(1024) | salt_msg(salt_msg_len)
+/// Falcon-512 verify precompile.
+/// Input: s2(1024, 512×uint16 BE) | ntth(1024, 512×uint16 BE) | salt_msg(var)
+/// Output: 32 bytes (0x00..01 valid, 0x00..00 invalid)
 pub fn falcon_verify_precompile(input: &[u8]) -> Option<Vec<u8>> {
-    if input.len() < 32 + 2 * COMPACT_SIZE {
+    const VEC_SIZE: usize = N * 2; // 512 × 2 bytes = 1024
+    if input.len() < 2 * VEC_SIZE {
         return None;
     }
-    let sm_len = read_u64_be(&input[0..32])? as usize;
-    if input.len() != 32 + 2 * COMPACT_SIZE + sm_len {
-        return None;
-    }
-    let s2_compact = &input[32..32 + COMPACT_SIZE];
-    let ntth_compact = &input[32 + COMPACT_SIZE..32 + 2 * COMPACT_SIZE];
-    let salt_msg = &input[32 + 2 * COMPACT_SIZE..];
-    to_result(falcon_verify(salt_msg, s2_compact, ntth_compact))
+    let s2 = read_u16_be_array(&input[0..VEC_SIZE]);
+    let ntth = read_u16_be_array(&input[VEC_SIZE..2 * VEC_SIZE]);
+    let salt_msg = &input[2 * VEC_SIZE..];
+
+    let params = falcon_params();
+    let hashed_compact = shake256_htp(salt_msg);
+    let hashed = unpack(&hashed_compact).unwrap();
+
+    let ntt_s2 = fast::ntt_fw_fast(&s2, params);
+    let product = fast::vec_mul_mod_fast(&ntt_s2, &ntth, Q);
+    let s1 = fast::ntt_inv_fast(&product, params);
+
+    to_result(falcon_norm_coeffs(&s1, &s2, &hashed))
 }
 
-/// Falcon-512 verify precompile (v2 format — zero-copy friendly).
-/// Input: s2_compact(1024) | ntth_compact(1024) | salt_msg(var)
-/// No header needed — s2 and ntth are fixed size, salt_msg is the remainder.
-pub fn falcon_verify_precompile_v2(input: &[u8]) -> Option<Vec<u8>> {
-    if input.len() < 2 * COMPACT_SIZE {
-        return None;
-    }
-    let s2_compact = &input[0..COMPACT_SIZE];
-    let ntth_compact = &input[COMPACT_SIZE..2 * COMPACT_SIZE];
-    let salt_msg = &input[2 * COMPACT_SIZE..];
-    to_result(falcon_verify(salt_msg, s2_compact, ntth_compact))
+fn read_u16_be_array(data: &[u8]) -> Vec<u64> {
+    data.chunks_exact(2)
+        .map(|c| ((c[0] as u64) << 8) | c[1] as u64)
+        .collect()
 }
 
 fn to_result(valid: bool) -> Option<Vec<u8>> {

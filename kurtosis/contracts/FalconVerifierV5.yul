@@ -1,7 +1,7 @@
-/// @title FalconVerifierV5 — Minimal Falcon-512 verifier
-/// Calldata: s2_compact(1024) | ntth_compact(1024) | salt(40) | msg(var)
-/// ONE calldatacopy, ONE staticcall to FALCON_VERIFY_V2 at 0x1d
-/// Calldata layout = precompile input layout (zero rearrangement)
+/// @title FalconVerifierV5 — Single-precompile Falcon-512 verifier
+/// Calldata = precompile input: s2(1024, 512×uint16 BE) | ntth(1024, 512×uint16 BE) | salt_msg(var)
+/// One calldatacopy, one staticcall to FALCON_VERIFY at 0x1c
+/// Returns 32 bytes (0x01 valid, 0x00 invalid)
 
 object "FalconVerifierV5" {
     code {
@@ -10,10 +10,8 @@ object "FalconVerifierV5" {
     }
     object "runtime" {
         code {
-            // Copy entire calldata to memory[0]
             calldatacopy(0, 0, calldatasize())
-            // staticcall(gas, 0x1d, 0, calldatasize, 0, 32)
-            if iszero(staticcall(gas(), 0x1d, 0, calldatasize(), 0, 0x20)) {
+            if iszero(staticcall(gas(), 0x1c, 0, calldatasize(), 0, 0x20)) {
                 revert(0, 0)
             }
             return(0, 0x20)

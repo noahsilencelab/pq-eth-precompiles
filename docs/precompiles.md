@@ -135,44 +135,38 @@ data        (var bytes)    — data to hash
 
 ---
 
-### `0x1c` — FALCON_VERIFY (v1)
+### `0x1c` — FALCON_VERIFY
 
-Full Falcon-512 signature verification: SHAKE256 hash-to-point + NTT + pointwise multiply + inverse NTT + norm check.
+Full Falcon-512 signature verification in a single call. Performs SHAKE256 hash-to-point, forward NTT, pointwise multiply, inverse NTT, and centered L2 norm check.
 
-**Input:**
-```
-salt_msg_len  (32 bytes BE) — length of salt||message
-s2_compact    (1024 bytes)  — signature component (compact)
-ntth_compact  (1024 bytes)  — public key in NTT domain (compact)
-salt_msg      (var bytes)   — salt || message
-```
-
-**Output:** 32 bytes — `0x00..01` if valid, `0x00..00` if invalid.
-
-**Gas:** 2800
-
----
-
-### `0x1d` — FALCON_VERIFY_V2 (zero-copy)
-
-Same as `0x1c` but with a simpler layout — no length header.
+Follows standard precompile conventions: flat big-endian arrays, no custom packing.
 
 **Input:**
 ```
-s2_compact    (1024 bytes)  — signature component (compact)
-ntth_compact  (1024 bytes)  — public key in NTT domain (compact)
-salt_msg      (var bytes)   — salt || message (remainder of input)
+s2       (1024 bytes)  — signature polynomial s2, 512 × uint16 big-endian
+ntth     (1024 bytes)  — public key in NTT domain, 512 × uint16 big-endian
+salt_msg (var bytes)   — nonce (40 bytes) || message (remainder of input)
 ```
 
-**Output:** 32 bytes — `0x00..01` if valid, `0x00..00` if invalid.
+Each coefficient is a 2-byte big-endian unsigned integer (max value 12288).
+
+**Output:** 32 bytes — `0x0000...0001` if signature is valid, `0x0000...0000` if invalid. Same convention as `bn256Pairing` (`0x08`).
 
 **Gas:** 2800
 
+**Example:**
+```
+Input:  [s2_0_hi, s2_0_lo, s2_1_hi, s2_1_lo, ..., s2_511_hi, s2_511_lo,
+         ntth_0_hi, ntth_0_lo, ..., ntth_511_hi, ntth_511_lo,
+         nonce_byte_0, ..., nonce_byte_39, msg_byte_0, ...]
+Output: 0x0000000000000000000000000000000000000000000000000000000000000001
+```
+
 ---
 
-## Generalized Precompile
+## Generalized Precompiles
 
-### LpNorm (via Rust API, not yet assigned an address)
+### LpNorm (Rust API, address TBD)
 
 Centered L2 norm check for any lattice-based signature scheme.
 
@@ -195,9 +189,9 @@ hashed (n × cb bytes, BE) — hash-to-point result
 
 | Precompile | Time | Gas (350 Mgas/s) |
 |---|---|---|
-| NTT_FW_COMPACT | 2.8 µs | 1000 |
-| NTT_INV_COMPACT | 2.8 µs | 1000 |
-| VECMULMOD_COMPACT | 590 ns | 200 |
+| NTT_FW | 2.8 µs | 1000 |
+| NTT_INV | 2.8 µs | 1000 |
+| VECMULMOD | 590 ns | 200 |
 | SHAKE256_HTP | 1.8 µs | 600 |
 | FALCON_NORM | 1.0 µs | 400 |
 | **FALCON_VERIFY** | **8.1 µs** | **2800** |

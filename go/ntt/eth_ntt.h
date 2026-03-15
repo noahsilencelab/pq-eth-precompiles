@@ -101,17 +101,10 @@ int32_t eth_ntt_falcon_norm(
     const uint8_t *input, size_t input_len,
     uint8_t **output_out, size_t *output_len_out);
 
-/* Full Falcon-512 verify: SHAKE256 HTP + NTT + VECMUL + INTT + norm check.
- * Input: salt_msg_len(32 BE) | s2_compact(1024) | ntth_compact(1024) | salt_msg(salt_msg_len)
+/* Falcon-512 verify: SHAKE256 HTP + NTT + VECMUL + INTT + norm check.
+ * Input: s2(1024, 512×uint16 BE) | ntth(1024, 512×uint16 BE) | salt_msg(var)
  * Output: 32 bytes (0x00..01 valid, 0x00..00 invalid) */
 int32_t eth_ntt_falcon_verify(
-    const uint8_t *input, size_t input_len,
-    uint8_t **output_out, size_t *output_len_out);
-
-/* Falcon-512 verify v2: zero-copy layout.
- * Input: s2_compact(1024) | ntth_compact(1024) | salt_msg(var)
- * Output: 32 bytes bool */
-int32_t eth_ntt_falcon_verify_v2(
     const uint8_t *input, size_t input_len,
     uint8_t **output_out, size_t *output_len_out);
 

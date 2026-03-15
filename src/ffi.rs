@@ -153,8 +153,9 @@ pub unsafe extern "C" fn eth_ntt_falcon_norm(
     }
 }
 
-/// Full Falcon-512 verify precompile.
-/// Input: salt_msg_len(32) | s2_compact(1024) | ntth_compact(1024) | salt_msg(salt_msg_len)
+/// Falcon-512 verify.
+/// Input: s2(1024, 512×uint16 BE) | ntth(1024, 512×uint16 BE) | salt_msg(var)
+/// Output: 32 bytes (0x00..01 valid, 0x00..00 invalid)
 #[no_mangle]
 pub unsafe extern "C" fn eth_ntt_falcon_verify(
     input: *const u8, input_len: usize,
@@ -162,20 +163,6 @@ pub unsafe extern "C" fn eth_ntt_falcon_verify(
 ) -> i32 {
     let data = slice::from_raw_parts(input, input_len);
     match compact::falcon_verify_precompile(data) {
-        Some(out) => { write_output(out, output_out, output_len_out); 0 }
-        None => -1,
-    }
-}
-
-/// Falcon-512 verify v2: zero-copy layout.
-/// Input: s2_compact(1024) | ntth_compact(1024) | salt_msg(var)
-#[no_mangle]
-pub unsafe extern "C" fn eth_ntt_falcon_verify_v2(
-    input: *const u8, input_len: usize,
-    output_out: *mut *mut u8, output_len_out: *mut usize,
-) -> i32 {
-    let data = slice::from_raw_parts(input, input_len);
-    match compact::falcon_verify_precompile_v2(data) {
         Some(out) => { write_output(out, output_out, output_len_out); 0 }
         None => -1,
     }
