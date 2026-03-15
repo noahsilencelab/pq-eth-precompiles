@@ -153,6 +153,20 @@ pub unsafe extern "C" fn eth_ntt_falcon_norm(
     }
 }
 
+/// Full Falcon-512 verify precompile.
+/// Input: salt_msg_len(32) | s2_compact(1024) | ntth_compact(1024) | salt_msg(salt_msg_len)
+#[no_mangle]
+pub unsafe extern "C" fn eth_ntt_falcon_verify(
+    input: *const u8, input_len: usize,
+    output_out: *mut *mut u8, output_len_out: *mut usize,
+) -> i32 {
+    let data = slice::from_raw_parts(input, input_len);
+    match compact::falcon_verify_precompile(data) {
+        Some(out) => { write_output(out, output_out, output_len_out); 0 }
+        None => -1,
+    }
+}
+
 /// Generalized LpNorm for any lattice-based signature.
 /// Input: q(32) | n(32) | bound(32) | cb(32) | s1(n×cb) | s2(n×cb) | hashed(n×cb)
 #[no_mangle]

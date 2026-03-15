@@ -449,4 +449,29 @@ criterion_group!(
     bench_compact_shake256_htp,
     bench_compact_norm,
     bench_compact_full_verify,
+    bench_falcon_verify_precompile,
 );
+
+fn bench_falcon_verify_precompile(c: &mut Criterion) {
+    // Build a realistic precompile input
+    let params = FastNttParams::new(12289, 512, 49).unwrap();
+    let s2: Vec<u64> = (0..512).map(|i| ((i as i64 * 3 % 5 - 2).rem_euclid(12289)) as u64).collect();
+    let h: Vec<u64> = (0..512).map(|i| (i * 13 + 1) % 12289).collect();
+    let ntth = ntt_fw_fast(&h, &params);
+
+    let salt_msg = b"test salt 40 bytes padding xxxxxxxxxxxxxxxmsg";
+    let s2c = compact::pack(&s2);
+    let ntthc = compact::pack(&ntth);
+
+    // Build precompile input: salt_msg_len(32) | s2(1024) | ntth(1024) | salt_msg
+    let mut input = vec![0u8; 32];
+    let sm_len = salt_msg.len() as u64;
+    input[24..32].copy_from_slice(&sm_len.to_be_bytes());
+    input.extend_from_slice(&s2c);
+    input.extend_from_slice(&ntthc);
+    input.extend_from_slice(salt_msg);
+
+    c.bench_function("falcon_verify_precompile", |b| {
+        b.iter(|| compact::falcon_verify_precompile(black_box(&input)))
+    });
+}

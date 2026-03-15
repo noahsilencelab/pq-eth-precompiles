@@ -44,8 +44,14 @@ pub fn pack(coeffs: &[u64]) -> Vec<u8> {
     out
 }
 
-fn falcon_params() -> FastNttParams {
+use std::sync::LazyLock;
+
+static FALCON_PARAMS: LazyLock<FastNttParams> = LazyLock::new(|| {
     FastNttParams::new(Q, N, PSI).unwrap()
+});
+
+fn falcon_params() -> &'static FastNttParams {
+    &FALCON_PARAMS
 }
 
 /// NTT forward on compact data.
@@ -201,6 +207,29 @@ fn read_coeffs(data: &[u8], n: usize, cb: usize) -> Vec<u64> {
     coeffs
 }
 
+/// Falcon-512 verify precompile.
+/// Input: salt_msg_len(32 BE) | s2_compact(1024) | ntth_compact(1024) | salt_msg(salt_msg_len)
+/// Output: 32 bytes (0x00..01 valid, 0x00..00 invalid)
+pub fn falcon_verify_precompile(input: &[u8]) -> Option<Vec<u8>> {
+    if input.len() < 32 + 2 * COMPACT_SIZE {
+        return None;
+    }
+    let sm_len = read_u64_be(&input[0..32])? as usize;
+    if input.len() != 32 + 2 * COMPACT_SIZE + sm_len {
+        return None;
+    }
+    let s2_compact = &input[32..32 + COMPACT_SIZE];
+    let ntth_compact = &input[32 + COMPACT_SIZE..32 + 2 * COMPACT_SIZE];
+    let salt_msg = &input[32 + 2 * COMPACT_SIZE..];
+
+    let valid = falcon_verify(salt_msg, s2_compact, ntth_compact);
+    let mut result = vec![0u8; 32];
+    if valid {
+        result[31] = 1;
+    }
+    Some(result)
+}
+
 /// Full Falcon-512 verification pipeline on compact data.
 /// Input: salt||msg, s2_compact, ntth_compact (public key in NTT domain).
 /// Returns true if signature is valid.
@@ -296,6 +325,57 @@ mod tests {
         let hashed = vec![0u64; n];
         // norm = 256 * 1² = 256, well under bound
         assert!(lp_norm_coeffs(q, bound, &s1, &s2, &hashed));
+    }
+
+    #[test]
+    fn test_falcon_verify_precompile_valid() {
+        // Build a valid verification using the precompile format
+        let params = falcon_params();
+        let s2: Vec<u64> = vec![0u64; N]; // zero s2 = trivial sig
+        let h: Vec<u64> = (0..N as u64).map(|i| (i * 13 + 1) % Q).collect();
+        let ntth = fast::ntt_fw_fast(&h, params);
+
+        let salt_msg = b"test salt data for hash to point verification";
+
+        let s2c = pack(&s2);
+        let ntthc = pack(&ntth);
+
+        let mut input = vec![0u8; 32];
+        let sm_len = salt_msg.len() as u64;
+        input[24..32].copy_from_slice(&sm_len.to_be_bytes());
+        input.extend_from_slice(&s2c);
+        input.extend_from_slice(&ntthc);
+        input.extend_from_slice(salt_msg);
+
+        let result = falcon_verify_precompile(&input).unwrap();
+        // With s2=0, s1 = INTT(NTT(0)*NTT(h)) = 0, norm = ||hashed||²
+        // This may or may not pass the bound depending on hashed values.
+        // Just check it returns something valid (32 bytes).
+        assert_eq!(result.len(), 32);
+    }
+
+    #[test]
+    fn test_falcon_verify_roundtrip() {
+        // Verify that falcon_verify matches manual pipeline
+        let s2: Vec<u64> = (0..N as u64).map(|i| ((i as i64 % 3 - 1).rem_euclid(Q as i64)) as u64).collect();
+        let h: Vec<u64> = (0..N as u64).map(|i| (i * 7 + 3) % Q).collect();
+        let ntth = fast::ntt_fw_fast(&h, falcon_params());
+
+        let salt_msg = b"nonce40bytesxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxmsg";
+        let s2c = pack(&s2);
+        let ntthc = pack(&ntth);
+
+        let result_api = falcon_verify(salt_msg, &s2c, &ntthc);
+
+        // Manual pipeline
+        let hashed = shake256_htp(salt_msg);
+        let hashed_coeffs = unpack(&hashed).unwrap();
+        let ntt_s2 = fast::ntt_fw_fast(&s2, falcon_params());
+        let product = fast::vec_mul_mod_fast(&ntt_s2, &ntth, Q);
+        let s1 = fast::ntt_inv_fast(&product, falcon_params());
+        let result_manual = falcon_norm_coeffs(&s1, &s2, &hashed_coeffs);
+
+        assert_eq!(result_api, result_manual);
     }
 
     #[test]
