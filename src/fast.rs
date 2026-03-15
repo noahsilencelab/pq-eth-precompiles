@@ -333,8 +333,8 @@ fn mul_mod_64(a: u64, b: u64, q: u64) -> u64 {
 
 #[inline(always)]
 fn add_mod_64(a: u64, b: u64, q: u64) -> u64 {
-    let s = a + b;
-    if s >= q { s - q } else { s }
+    let (s, overflow) = a.overflowing_add(b);
+    if overflow || s >= q { s.wrapping_sub(q) } else { s }
 }
 
 #[inline(always)]
