@@ -175,3 +175,61 @@ func VecAddMod(a, b []uint64, q uint64) []uint64 {
 func u64ptr(s []uint64) *C.uint64_t {
 	return (*C.uint64_t)(unsafe.Pointer(&s[0]))
 }
+
+// ── EVM compact format (Falcon-512 specific) ──
+
+// NttFwCompact runs NTT forward on 1024 bytes of compact EVM data.
+func NttFwCompact(input []byte) ([]byte, error) {
+	if len(input) != 1024 {
+		return nil, ErrBadLength
+	}
+	var outPtr *C.uint8_t
+	var outLen C.size_t
+	rc := C.eth_ntt_fw_compact((*C.uint8_t)(unsafe.Pointer(&input[0])), C.size_t(len(input)), &outPtr, &outLen)
+	return collectOutput(rc, outPtr, outLen)
+}
+
+// NttInvCompact runs NTT inverse on 1024 bytes of compact EVM data.
+func NttInvCompact(input []byte) ([]byte, error) {
+	if len(input) != 1024 {
+		return nil, ErrBadLength
+	}
+	var outPtr *C.uint8_t
+	var outLen C.size_t
+	rc := C.eth_ntt_inv_compact((*C.uint8_t)(unsafe.Pointer(&input[0])), C.size_t(len(input)), &outPtr, &outLen)
+	return collectOutput(rc, outPtr, outLen)
+}
+
+// VecMulModCompact runs pointwise multiply on 2048 bytes (two compact vectors).
+func VecMulModCompact(input []byte) ([]byte, error) {
+	if len(input) != 2048 {
+		return nil, ErrBadLength
+	}
+	var outPtr *C.uint8_t
+	var outLen C.size_t
+	rc := C.eth_ntt_vecmulmod_compact((*C.uint8_t)(unsafe.Pointer(&input[0])), C.size_t(len(input)), &outPtr, &outLen)
+	return collectOutput(rc, outPtr, outLen)
+}
+
+// Shake256HTP runs SHAKE256 hash-to-point, returning 1024 bytes compact.
+func Shake256HTP(input []byte) ([]byte, error) {
+	if len(input) == 0 {
+		return nil, ErrInputTooShort
+	}
+	var outPtr *C.uint8_t
+	var outLen C.size_t
+	rc := C.eth_ntt_shake256_htp((*C.uint8_t)(unsafe.Pointer(&input[0])), C.size_t(len(input)), &outPtr, &outLen)
+	return collectOutput(rc, outPtr, outLen)
+}
+
+// FalconNorm checks the Falcon-512 norm. Input: s1(1024)||s2(1024)||hashed(1024).
+// Returns 32 bytes: 0x00..01 if valid, 0x00..00 if invalid.
+func FalconNorm(input []byte) ([]byte, error) {
+	if len(input) != 3072 {
+		return nil, ErrBadLength
+	}
+	var outPtr *C.uint8_t
+	var outLen C.size_t
+	rc := C.eth_ntt_falcon_norm((*C.uint8_t)(unsafe.Pointer(&input[0])), C.size_t(len(input)), &outPtr, &outLen)
+	return collectOutput(rc, outPtr, outLen)
+}
