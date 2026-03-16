@@ -70,37 +70,6 @@ void eth_ntt_vec_add_mod(
     const uint64_t *a, const uint64_t *b,
     uint64_t *output, size_t n, uint64_t q);
 
-/* ── EVM compact format (Falcon-512 specific) ──
- *
- * Compact: 1024 bytes = 32 big-endian uint256 words, each packing
- * 16 little-endian uint16 coefficients. Falcon-512 params hardcoded
- * (q=12289, n=512, psi=49).
- */
-
-int32_t eth_ntt_fw_compact(
-    const uint8_t *input, size_t input_len,
-    uint8_t **output_out, size_t *output_len_out);
-
-int32_t eth_ntt_inv_compact(
-    const uint8_t *input, size_t input_len,
-    uint8_t **output_out, size_t *output_len_out);
-
-int32_t eth_ntt_vecmulmod_compact(
-    const uint8_t *input, size_t input_len,
-    uint8_t **output_out, size_t *output_len_out);
-
-/* SHAKE256 hash-to-point: input = salt||msg, output = 1024 bytes compact */
-int32_t eth_ntt_shake256_htp(
-    const uint8_t *input, size_t input_len,
-    uint8_t **output_out, size_t *output_len_out);
-
-/* Falcon-512 norm check on compact data.
- * Input: s1(1024) || s2(1024) || hashed(1024) = 3072 bytes
- * Output: 32 bytes (0x00..01 valid, 0x00..00 invalid) */
-int32_t eth_ntt_falcon_norm(
-    const uint8_t *input, size_t input_len,
-    uint8_t **output_out, size_t *output_len_out);
-
 /* Falcon-512 verify: SHAKE256 HTP + NTT + VECMUL + INTT + norm check.
  * Input: s2(1024, 512×uint16 BE) | ntth(1024, 512×uint16 BE) | salt_msg(var)
  * Output: 32 bytes (0x00..01 valid, 0x00..00 invalid) */

@@ -161,20 +161,6 @@ pub fn lp_norm_precompile(input: &[u8]) -> Option<Vec<u8>> {
     Some(result)
 }
 
-/// Falcon-512 concatenated norm check (compact format).
-/// Input: s1(1024)||s2(1024)||hashed(1024) = 3072 bytes.
-pub fn falcon_norm_bytes(input: &[u8]) -> Option<Vec<u8>> {
-    if input.len() != 3 * COMPACT_SIZE { return None; }
-    let valid = falcon_norm(
-        &input[0..COMPACT_SIZE],
-        &input[COMPACT_SIZE..2 * COMPACT_SIZE],
-        &input[2 * COMPACT_SIZE..],
-    );
-    let mut result = vec![0u8; 32];
-    if valid { result[31] = 1; }
-    Some(result)
-}
-
 // ─── Helpers ───
 
 fn read_u64_be(data: &[u8]) -> Option<u64> {

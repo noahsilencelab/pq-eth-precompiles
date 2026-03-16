@@ -92,67 +92,6 @@ pub unsafe extern "C" fn eth_ntt_vecaddmod_precompile(
     }
 }
 
-// ─── Compact-format Falcon-512 precompiles (delegate to compact module) ───
-
-#[no_mangle]
-pub unsafe extern "C" fn eth_ntt_fw_compact(
-    input: *const u8, input_len: usize,
-    output_out: *mut *mut u8, output_len_out: *mut usize,
-) -> i32 {
-    let data = slice::from_raw_parts(input, input_len);
-    match compact::ntt_fw_compact(data) {
-        Some(out) => { write_output(out, output_out, output_len_out); 0 }
-        None => -1,
-    }
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn eth_ntt_inv_compact(
-    input: *const u8, input_len: usize,
-    output_out: *mut *mut u8, output_len_out: *mut usize,
-) -> i32 {
-    let data = slice::from_raw_parts(input, input_len);
-    match compact::ntt_inv_compact(data) {
-        Some(out) => { write_output(out, output_out, output_len_out); 0 }
-        None => -1,
-    }
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn eth_ntt_vecmulmod_compact(
-    input: *const u8, input_len: usize,
-    output_out: *mut *mut u8, output_len_out: *mut usize,
-) -> i32 {
-    let data = slice::from_raw_parts(input, input_len);
-    match compact::vecmulmod_compact(data) {
-        Some(out) => { write_output(out, output_out, output_len_out); 0 }
-        None => -1,
-    }
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn eth_ntt_shake256_htp(
-    input: *const u8, input_len: usize,
-    output_out: *mut *mut u8, output_len_out: *mut usize,
-) -> i32 {
-    let data = slice::from_raw_parts(input, input_len);
-    write_output(compact::shake256_htp(data), output_out, output_len_out);
-    0
-}
-
-/// Falcon-512 norm on compact data (3072 bytes).
-#[no_mangle]
-pub unsafe extern "C" fn eth_ntt_falcon_norm(
-    input: *const u8, input_len: usize,
-    output_out: *mut *mut u8, output_len_out: *mut usize,
-) -> i32 {
-    let data = slice::from_raw_parts(input, input_len);
-    match compact::falcon_norm_bytes(data) {
-        Some(out) => { write_output(out, output_out, output_len_out); 0 }
-        None => -1,
-    }
-}
-
 /// Falcon-512 verify.
 /// Input: s2(1024, 512×uint16 BE) | ntth(1024, 512×uint16 BE) | salt_msg(var)
 /// Output: 32 bytes (0x00..01 valid, 0x00..00 invalid)
