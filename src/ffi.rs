@@ -179,6 +179,21 @@ pub unsafe extern "C" fn eth_ntt_lp_norm(
     }
 }
 
+/// Fixed-point FFT (Hawk reference format).
+/// Input: logn(32 BE) | direction(32 BE) | shift(32 BE) | coeffs(n × 4 LE)
+/// Output: n × 4 bytes (LE i32 coefficients)
+#[no_mangle]
+pub unsafe extern "C" fn eth_ntt_fx32_fft(
+    input: *const u8, input_len: usize,
+    output_out: *mut *mut u8, output_len_out: *mut usize,
+) -> i32 {
+    let data = slice::from_raw_parts(input, input_len);
+    match crate::fx32_fft::fx32_fft_precompile(data) {
+        Some(out) => { write_output(out, output_out, output_len_out); 0 }
+        None => -1,
+    }
+}
+
 #[no_mangle]
 pub unsafe extern "C" fn eth_ntt_free_buffer(ptr: *mut u8, len: usize) {
     if !ptr.is_null() && len > 0 {
