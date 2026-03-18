@@ -2,6 +2,7 @@ pub mod falcon;
 pub mod fast;
 mod ffi;
 mod field;
+pub mod fx32_fft;
 mod ntt;
 mod precompile;
 
