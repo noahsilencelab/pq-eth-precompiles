@@ -647,49 +647,68 @@ pub fn rebuild_s0_precompile(input: &[u8]) -> Option<Vec<u8>> {
     fx32_fft(logn, &mut fq01);
     fx32_fft(logn, &mut fw1);
 
-    // Pointwise: ratio_fft = fq01 * fw1 / fq00
-    // fq00 is auto-adjoint: real-only FFT (imaginary parts are zero after FFT)
-    // Complex multiply fq01 * fw1, then divide by fq00 (real scalar per slot)
-    let mut ratio_fft = vec![0u32; n];
+    // Pointwise: fq01 = (fq01 * fw1) / (cstup + fq00)
+    // Matching hawk_vrfy.c exactly:
+    //   cstup = q00[0] << (sh_q00 - (logn-1))
+    //   w00 = cstup + fq00[u]
+    //   x = complex_mul(fq01, fw1) as 64-bit
+    //   y = |x| / w00 (unsigned 64/32 division)
+    //   result = y with sign restored
+    let cstq00 = q00[0];
+    let cstup = (cstq00 as u32) << (sh_q00 - (logn as u32 - 1));
+
     for i in 0..hn {
-        let q01r = fq01[i] as i32 as i64;
-        let q01i = fq01[i + hn] as i32 as i64;
-        let w1r = fw1[i] as i32 as i64;
-        let w1i = fw1[i + hn] as i32 as i64;
+        let q01_re = fq01[i];
+        let q01_im = fq01[i + hn];
+        let t1_re = fw1[i];
+        let t1_im = fw1[i + hn];
 
-        // Complex multiply: (q01r + i*q01i) * (w1r + i*w1i)
-        let prod_r = ((q01r * w1r - q01i * w1i) >> 31) as i32;
-        let prod_i = ((q01r * w1i + q01i * w1r) >> 31) as i32;
+        // Complex multiply → 64-bit results
+        let x_re = ((q01_re as i32 as i64) * (t1_re as i32 as i64)) as u64
+            - ((q01_im as i32 as i64) * (t1_im as i32 as i64)) as u64;
+        // Wrapping: done via u64 wrapping arithmetic
+        let x_re = (((q01_re as i32 as i64).wrapping_mul(t1_re as i32 as i64)) as u64)
+            .wrapping_sub(((q01_im as i32 as i64).wrapping_mul(t1_im as i32 as i64)) as u64);
+        let x_im = (((q01_re as i32 as i64).wrapping_mul(t1_im as i32 as i64)) as u64)
+            .wrapping_add(((q01_im as i32 as i64).wrapping_mul(t1_re as i32 as i64)) as u64);
 
-        // Divide by fq00[i] (real-only): scalar division
-        let q00v = fq00[i] as i32;
-        if q00v == 0 { return None; }
+        // Absolute value (save sign)
+        let sx_re = (x_re as i64 >> 63) as u64;
+        let sx_im = (x_im as i64 >> 63) as u64;
+        let ax_re = (x_re ^ sx_re).wrapping_sub(sx_re);
+        let ax_im = (x_im ^ sx_im).wrapping_sub(sx_im);
 
-        // Fixed-point division: (prod << 31) / q00v, but we need to be careful
-        // The reference does this differently — it precomputes 1/q00 in FFT domain.
-        // For correctness, let's use 64-bit division:
-        ratio_fft[i] = (((prod_r as i64) << 31) / q00v as i64) as u32;
-        ratio_fft[i + hn] = (((prod_i as i64) << 31) / q00v as i64) as u32;
+        // Divisor
+        let w00 = cstup.wrapping_add(fq00[i]);
+
+        // 64/32 unsigned division
+        if w00 == 0 { return None; }
+        let y_re = (ax_re / w00 as u64) as u32;
+        let y_im = (ax_im / w00 as u64) as u32;
+
+        // Restore sign
+        fq01[i]      = (y_re ^ sx_re as u32).wrapping_sub(sx_re as u32);
+        fq01[i + hn] = (y_im ^ sx_im as u32).wrapping_sub(sx_im as u32);
     }
 
-    // Inverse FFT
-    fx32_ifft(logn, &mut ratio_fft);
+    // Inverse FFT on the ratio (now stored in fq01)
+    fx32_ifft(logn, &mut fq01);
 
-    // Compute s0[i] = round((h0[i] + ratio[i]) / 2)
-    // The total shift after the chain: sh_q01 + sh_t1 - 31 - 31 + 31 - (logn-1) + 31
-    // = sh_q01 + sh_t1 - (logn-1) - 31 + 31 = sh_q01 + sh_t1 - (logn-1)
-    // Hmm, the shift tracking is complex. Let's use sh_s0 from the reference:
-    // sh_s0 = sh_q01 + sh_t1 - sh_q00 - (logn - 1) for the ratio after division.
-    let sh_s0 = sh_q01 + sh_t1 - sh_q00 - (logn as u32 - 1);
+    // s0 = round((h0 + fq01) / 2) matching reference exactly:
+    //   sh_s0 = sh_t1 + sh_q01 - sh_q00 - (logn - 1)
+    //   s0[i] = fx32_rint(fx32_of(h0[i], sh_s0) + fq01[i], sh_s0 + 1)
+    let sh_s0 = sh_t1 + sh_q01 - sh_q00 - (logn as u32 - 1);
 
     let mut s0_out = Vec::with_capacity(n * 2);
-    for i in 0..n {
-        // h0[i] is 0 or 1. In fx32 format with sh_s0 bits: fx32_of(h0[i], sh_s0)
-        let h0_fx = fx32_of(h0[i], sh_s0);
-        let sum = h0_fx.wrapping_add(ratio_fft[i]);
-        // s0 = round(sum / 2) = fx32_rint(sum, sh_s0 + 1)
-        let s0 = fx32_rint(sum, sh_s0 + 1) as i16;
-        s0_out.extend_from_slice(&s0.to_le_bytes());
+    for i_byte in 0..n / 8 {
+        let mut h0b = h0_bytes[i_byte];
+        for v in 0..8 {
+            let u = i_byte * 8 + v;
+            let w = fx32_of((h0b & 1) as i32, sh_s0).wrapping_add(fq01[u]);
+            let z = fx32_rint(w, sh_s0 + 1);
+            s0_out.extend_from_slice(&(z as i16).to_le_bytes());
+            h0b >>= 1;
+        }
     }
     Some(s0_out)
 }
