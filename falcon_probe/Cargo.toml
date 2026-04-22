@@ -1,0 +1,8 @@
+[package]
+name = "falcon_probe"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+pqcrypto-falcon = "0.3"
+pqcrypto-traits = "0.3"
