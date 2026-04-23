@@ -1,2 +1,2 @@
-state/*.json
+state/ml_dsa_keypair.json
 rust/target/

@@ -12,14 +12,16 @@ fn main() -> Result<()> {
     let rpc_url = flag_value(&args, "--rpc")
         .or_else(|| std::env::var("RPC_URL").ok())
         .ok_or("missing --rpc or RPC_URL")?;
-    let private_key = flag_value(&args, "--private-key").or_else(|| std::env::var("PRIVATE_KEY").ok());
+    let private_key =
+        flag_value(&args, "--private-key").or_else(|| std::env::var("PRIVATE_KEY").ok());
     let deployment_path = flag_value(&args, "--deployment")
         .map(PathBuf::from)
         .unwrap_or_else(|| state_dir().join("deployment.json"));
     let key_file = flag_value(&args, "--key-file")
         .map(PathBuf::from)
         .unwrap_or_else(|| state_dir().join("ml_dsa_keypair.json"));
-    let note = flag_value(&args, "--note").unwrap_or_else(|| "hello from ML-DSA wallet".to_string());
+    let note =
+        flag_value(&args, "--note").unwrap_or_else(|| "hello from ML-DSA wallet".to_string());
     let deadline_seconds = flag_value(&args, "--deadline-seconds")
         .map(|value| value.parse::<u64>())
         .transpose()?
@@ -36,9 +38,16 @@ fn main() -> Result<()> {
     let target = string_field(&deployment, "demo_recipient_address")?;
     let public_key_hex = ensure_0x(string_field(&key_data, "public_key_hex")?);
     let key_hash = cast_keccak(&public_key_hex)?;
-    let nonce = cast_call(&rpc_url, wallet, "nonces(bytes32)(uint256)", &[key_hash.clone()])?
-        .parse::<u64>()?;
+
+    let nonce = cast_call(
+        &rpc_url,
+        wallet,
+        "nonces(bytes32)(uint256)",
+        &[key_hash.clone()],
+    )?
+    .parse::<u64>()?;
     let current_chain_id = chain_id(&rpc_url)?;
+
     let stored_chain_id = deployment["chain_id"].as_u64().unwrap_or(current_chain_id);
     if stored_chain_id != current_chain_id {
         return Err(format!(
@@ -47,11 +56,13 @@ fn main() -> Result<()> {
         )
         .into());
     }
+
     let deadline = latest_block_timestamp(&rpc_url)? + deadline_seconds;
     let value = 0u64;
 
     let target_calldata = cast_calldata("setNote(string)", &[note.clone()])?;
     let calldata_hash = cast_keccak(&target_calldata)?;
+
     let encoded = cast_abi_encode(
         "f(uint256,address,bytes32,uint256,address,uint256,bytes32,uint256)",
         &[
@@ -72,6 +83,7 @@ fn main() -> Result<()> {
     let secret_key_bytes = hex::decode(secret_key_hex)?;
     let secret_key = dilithium2::SecretKey::from_bytes(&secret_key_bytes)?;
     let message_bytes = hex::decode(strip_0x(&message_hex))?;
+
     let signature = dilithium2::detached_sign(&message_bytes, &secret_key);
     let signature_hex = format!("0x{}", hex::encode(signature.as_bytes()));
 
