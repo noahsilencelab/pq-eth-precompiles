@@ -3,6 +3,12 @@
   "demo_recipient_address": "0x248599eb1beb1bc062d625e40a93b8f4e9833083",
   "demo_recipient_deploy_tx": "0x4e96c1b4c2e21e753b2f8b4c52820bad10aa1ccb963e32fbeed08c92cd939416",
   "rpc_url": "http://65.109.17.230:33952",
+  "token_address": "0x37dc82c6c1f37608d4e1567bc91b4eb7ee7d76f1",
+  "token_decimals": "18",
+  "token_deploy_tx": "0xb24bc16dbc828be3ddcc1aaa7803b381adc4d00235595b2ea7ae965a0e8ad0ee",
+  "token_name": "PQ Demo Token",
+  "token_supply": "1000000000000000000000",
+  "token_symbol": "PQT",
   "wallet_address": "0x02f9e4cdaa607688bef884d6bb6d18e2e46788d0",
   "wallet_deploy_tx": "0xa5d3400074d076df94979d0865cc0515410ed4b6e05a85b232c29f23c9d7756f"
 }

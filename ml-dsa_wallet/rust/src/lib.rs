@@ -76,6 +76,7 @@ pub fn compile_contracts() -> Result<HashMap<String, String>> {
             "abi,bin".to_string(),
             src_dir.join("MLDSAWallet.sol").display().to_string(),
             src_dir.join("DemoRecipient.sol").display().to_string(),
+            src_dir.join("SimpleERC20.sol").display().to_string(),
         ],
         Some(&wallet_root()),
     )?;

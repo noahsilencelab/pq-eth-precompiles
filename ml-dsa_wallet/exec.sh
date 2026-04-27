@@ -8,12 +8,14 @@ usage() {
 Usage:
   ./exec.sh keygen [args...]
   ./exec.sh deploy [args...]
+  ./exec.sh deploy-token [args...]
   ./exec.sh verify [args...]
   ./exec.sh execute [args...]
 
 Examples:
   ./exec.sh keygen
   RPC_URL=http://65.109.17.230:33952 PRIVATE_KEY=... ./exec.sh deploy
+  RPC_URL=http://65.109.17.230:33952 PRIVATE_KEY=... ./exec.sh deploy-token
   RPC_URL=http://65.109.17.230:33952 ./exec.sh verify
   RPC_URL=http://65.109.17.230:33952 ./exec.sh execute --dry-run-only
 EOF
@@ -32,6 +34,9 @@ case "$subcommand" in
     ;;
   deploy)
     bin="deploy"
+    ;;
+  deploy-token)
+    bin="deploy_token"
     ;;
   verify)
     bin="verify_deployment"

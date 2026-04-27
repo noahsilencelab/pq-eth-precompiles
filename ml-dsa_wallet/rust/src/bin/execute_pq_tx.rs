@@ -22,6 +22,9 @@ fn main() -> Result<()> {
         .unwrap_or_else(|| state_dir().join("ml_dsa_keypair.json"));
     let note =
         flag_value(&args, "--note").unwrap_or_else(|| "hello from ML-DSA wallet".to_string());
+    let erc20_recipient = flag_value(&args, "--erc20-recipient");
+    let erc20_amount =
+        flag_value(&args, "--erc20-amount").unwrap_or_else(|| "1000000000000000000".to_string());
     let deadline_seconds = flag_value(&args, "--deadline-seconds")
         .map(|value| value.parse::<u64>())
         .transpose()?
@@ -35,7 +38,8 @@ fn main() -> Result<()> {
     let deployment = load_json(&deployment_path)?;
     let key_data = load_json(&key_file)?;
     let wallet = string_field(&deployment, "wallet_address")?;
-    let target = string_field(&deployment, "demo_recipient_address")?;
+    let demo_recipient = string_field(&deployment, "demo_recipient_address")?;
+    let token = string_field(&deployment, "token_address")?;
     let public_key_hex = ensure_0x(string_field(&key_data, "public_key_hex")?);
     let key_hash = cast_keccak(&public_key_hex)?;
 
@@ -60,7 +64,22 @@ fn main() -> Result<()> {
     let deadline = latest_block_timestamp(&rpc_url)? + deadline_seconds;
     let value = 0u64;
 
-    let target_calldata = cast_calldata("setNote(string)", &[note.clone()])?;
+    let (target, target_calldata, action_label) = if let Some(recipient) = erc20_recipient.clone() {
+        let calldata =
+            cast_calldata("transfer(address,uint256)", &[recipient.clone(), erc20_amount.clone()])?;
+        (
+            token.to_string(),
+            calldata,
+            format!("erc20 transfer of {} to {}", erc20_amount, recipient),
+        )
+    } else {
+        let calldata = cast_calldata("setNote(string)", &[note.clone()])?;
+        (
+            demo_recipient.to_string(),
+            calldata,
+            format!("demo note `{}`", note),
+        )
+    };
     let calldata_hash = cast_keccak(&target_calldata)?;
 
     let encoded = cast_abi_encode(
@@ -89,6 +108,8 @@ fn main() -> Result<()> {
 
     println!("Wallet nonce: {}", nonce);
     println!("Runtime ML-DSA public key hash: {}", key_hash);
+    println!("Action: {}", action_label);
+    println!("Target: {}", target);
     println!("Target calldata: {}", target_calldata);
     println!("Operation digest: {}", digest);
     println!("Verification message: {}", message_hex);
@@ -134,13 +155,22 @@ fn main() -> Result<()> {
     );
 
     let updated_nonce = cast_call(&rpc_url, wallet, "nonces(bytes32)(uint256)", &[key_hash])?;
-    let note = cast_call(&rpc_url, target, "note()(string)", &[])?;
-    let count = cast_call(&rpc_url, target, "count()(uint256)", &[])?;
-    let last_caller = cast_call(&rpc_url, target, "lastCaller()(address)", &[])?;
 
     println!("Updated nonce for runtime key: {}", updated_nonce);
-    println!("Recipient note: {}", note);
-    println!("Recipient count: {}", count);
-    println!("Recipient last caller: {}", last_caller);
+    if let Some(recipient) = erc20_recipient {
+        let wallet_balance =
+            cast_call(&rpc_url, token, "balanceOf(address)(uint256)", &[wallet.to_string()])?;
+        let recipient_balance =
+            cast_call(&rpc_url, token, "balanceOf(address)(uint256)", &[recipient.clone()])?;
+        println!("Wallet token balance: {}", wallet_balance);
+        println!("ERC20 recipient balance: {}", recipient_balance);
+    } else {
+        let note = cast_call(&rpc_url, demo_recipient, "note()(string)", &[])?;
+        let count = cast_call(&rpc_url, demo_recipient, "count()(uint256)", &[])?;
+        let last_caller = cast_call(&rpc_url, demo_recipient, "lastCaller()(address)", &[])?;
+        println!("Recipient note: {}", note);
+        println!("Recipient count: {}", count);
+        println!("Recipient last caller: {}", last_caller);
+    }
     Ok(())
 }
